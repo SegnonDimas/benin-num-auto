@@ -1,4 +1,11 @@
 name: benin_num_auto
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path_android: "assets/icon/icon.png"
+  min_sdk_android: 21 # android min sdk min:16, default 21
+
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -21,10 +28,7 @@ version: 1.0.0+1
 environment:
   sdk: ^3.5.3
 
-flutter_icons:
-  android: true
-  ios: true
-  image_path: "assets/icon/app_icon.png"
+
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -75,6 +79,8 @@ flutter:
     - assets/lotties/
     - assets/lotties/infos.json
     - assets/icon/app_icon.png
+    - assets/icon/icon.png
+
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

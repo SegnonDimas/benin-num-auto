@@ -11,6 +11,14 @@ class InfosPage extends StatelessWidget {
         ),
         backgroundColor: Colors.blue.shade800,
         foregroundColor: Colors.white,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: CircleAvatar(
+                radius: 20,
+                backgroundImage: AssetImage('assets/icon/icon.png')),
+          )
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.only(left: 16.0, right: 16.0),
