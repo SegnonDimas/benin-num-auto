@@ -27,40 +27,6 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
     fetchContacts();
   }
 
-  /*Future<void> fetchContacts() async {
-    if (!await FlutterContacts.requestPermission()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Permission refusée. Accès aux contacts requis.')),
-      );
-      return;
-    }
-
-    setState(() => isLoading = true); // Démarre le loader
-
-    try {
-      final allContacts = await FlutterContacts.getContacts(
-        withProperties: true, // Assurez-vous de récupérer les propriétés
-        withPhoto: true, // Assurez-vous de récupérer les photos
-        withAccounts:
-            true, // Gardez cette option pour récupérer les informations sur les comptes associés
-      );
-      setState(() {
-        contacts = allContacts;
-        filteredContacts =
-            allContacts; // Initialement, tous les contacts sont affichés
-      });
-    } catch (e) {
-      // Affiche un message d'erreur détaillé
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Erreur lors de la récupération des contacts: $e')),
-      );
-      print('Erreur lors de la récupération des contacts: $e');
-    } finally {
-      setState(() => isLoading = false); // Arrête le loader
-    }
-  }*/
   /// DEBUT : recharge des contacts du téléphone
   Future<void> fetchContacts({bool incremental = false}) async {
     if (!await FlutterContacts.requestPermission()) {
@@ -81,9 +47,8 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
         // Charge uniquement les contacts modifiés
         newContacts = await FlutterContacts.getContacts(
           withProperties: true,
-          //withPhoto: true,
+          withPhoto: true,
           withAccounts: true,
-          //onlyWithChanges: true, // Charge uniquement les changements
         );
       } else {
         // Charge tous les contacts
@@ -168,10 +133,10 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
       try {
         await contact.update();
         print('Contact mis à jour : ${contact.displayName}');
-        ScaffoldMessenger.of(context).showSnackBar(
+        /*ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text('Contact mis à jour : ${contact.displayName}')),
-        );
+        );*/
       } catch (e) {
         print('Erreur lors de la mise à jour : $e');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -221,7 +186,7 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
 
       if (letterIndex == 0 && searchQuery != '') {
         filteredContacts = contacts.where((contact) {
-          final name = contact.displayName?.toLowerCase() ?? '';
+          final name = contact.displayName.toLowerCase();
           final phoneNumbers =
               contact.phones.map((phone) => phone.number).join(' ');
           return name.contains(searchQuery) ||
@@ -229,7 +194,7 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
         }).toList();
       } else if (letterIndex != 0 && searchQuery != '') {
         filteredContacts = filteredContactsByLetter.where((contact) {
-          final name = contact.displayName?.toLowerCase() ?? '';
+          final name = contact.displayName.toLowerCase();
           final phoneNumbers =
               contact.phones.map((phone) => phone.number).join(' ');
           return name.contains(searchQuery) ||
@@ -249,7 +214,7 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
             filteredContacts; // Affiche tous les contacts
       } else {
         filteredContactsByLetter = filteredContacts.where((contact) {
-          final name = contact.displayName?.toUpperCase() ?? '';
+          final name = contact.displayName.toUpperCase();
           return name.startsWith(letter.toUpperCase());
         }).toList();
       }
@@ -261,7 +226,7 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
   /// DEBUT : reconversion des contacts au format XXXXXXXX
   String revertBeninNumber(String number) {
     // Nettoyer le numéro pour enlever les espaces, tirets, parenthèses
-    var cleanedNumber = number.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    var cleanedNumber = number.replaceAll(RegExp(r'[\s\-()]'), '');
 
     // Vérifier si le numéro est au format +22901XXXXXXXX
     if (RegExp(r'^\+22901\d{8}$').hasMatch(cleanedNumber)) {
@@ -290,10 +255,10 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
       try {
         await contact.update();
         print('Contact mis à jour : ${contact.displayName}');
-        ScaffoldMessenger.of(context).showSnackBar(
+        /*ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text('Contact mis à jour : ${contact.displayName}')),
-        );
+        );*/
       } catch (e) {
         print('Erreur lors de la mise à jour : $e');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -325,80 +290,12 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
     await refreshContacts();
   }
 
-  /*Future<void> updateContactToLocal(Contact contact) async {
-    bool updated = false;
-
-    // Parcourir tous les numéros du contact
-    for (var phone in contact.phones) {
-      final oldNumber = phone.number;
-      final newNumber = revertBeninNumber(oldNumber);
-
-      // Mettre à jour uniquement si le numéro a changé
-      if (newNumber != oldNumber) {
-        phone.number = newNumber;
-        updated = true;
-      }
-    }
-
-    // Sauvegarder les changements si des mises à jour ont été faites
-    if (updated) {
-      try {
-        await contact.update();
-        print('Contact mis à jour : ${contact.displayName}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Contact mis à jour : ${contact.displayName}')),
-        );
-      } catch (e) {
-        print('Erreur lors de la mise à jour : $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erreur lors de la mise à jour.')),
-        );
-      }
-    }
-  }
-
-  Future<void> updateAllContactsToLocal() async {
-    // Demander la permission pour lire et écrire dans les contacts
-    if (!await FlutterContacts.requestPermission(readonly: false)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Permission refusée.')),
-      );
-      return;
-    }
-
-    // Charger tous les contacts
-    final allContacts = await FlutterContacts.getContacts(withProperties: true);
-
-    // Mettre à jour chaque contact
-    for (var contact in allContacts) {
-      await updateContactToLocal(contact);
-    }
-
-    // Indiquer que tous les contacts ont été mis à jour
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${allContacts.length} contacts mis à jour !')),
-    );
-
-    // Rafraîchir les contacts
-    await refreshContacts();
-  }
-*/
-/*  Future<void> refreshContacts() async {
-    try {
-      const platform = MethodChannel('com.example.benin_num_auto');
-      await platform.invokeMethod('refreshContacts');
-      print("Contacts refreshed successfully!");
-    } on PlatformException catch (e) {
-      print("Failed to refresh contacts: ${e.message}");
-    }
-  }*/
-
   /// FIN : reconversion des contacts au format XXXXXXXX
 
   int letterIndex = 0;
   int letterIndexTemp = 0;
   bool selectAll = false;
+  double loadingDelay = 0;
 
   final List<String> _rechercheLettre = [
     'Tous',
@@ -647,10 +544,12 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const SizedBox(
-                    height: 50,
+                  SizedBox(
+                    height: 100,
                   ),
-                  Lottie.asset('assets/lotties/loading.json'),
+                  SizedBox(
+                      height: 250,
+                      child: Lottie.asset('assets/lotties/loading4.json')),
                   const SizedBox(height: 16),
                   const Padding(
                     padding: EdgeInsets.all(8.0),

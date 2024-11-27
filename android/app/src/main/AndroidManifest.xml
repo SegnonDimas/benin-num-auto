@@ -3,11 +3,12 @@
     <!-- Permissions nécessaires -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
-
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
+        android:enableOnBackInvokedCallback="true"
         android:label="Bénin Num Auto"
         android:name="${applicationName}"
-       android:icon="@mipmap/launcher_icon">
+        android:icon="@mipmap/launcher_icon">
         <activity
             android:name=".MainActivity"
             android:exported="true"

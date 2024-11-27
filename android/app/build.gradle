@@ -34,7 +34,8 @@ android {
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
-            //signingConfig = signingConfigs.debug
+            signingConfig = signingConfigs.debug
+            //signingConfig = signingConfigs.release
             minifyEnabled false // Désactiver pour éviter d'optimiser le code lors du build
             shrinkResources false // (Optionnel) Gardez les ressources inutilisées
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -46,3 +47,10 @@ android {
 flutter {
     source = "../.."
 }
+
+/*
+dependencies {
+    // ...
+    implementation("com.google.android.material:material:1.13.0-alpha08")
+    // ...
+}*/
