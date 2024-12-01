@@ -1,7 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class GuideUtilisationPage extends StatelessWidget {
   const GuideUtilisationPage({super.key});
+
+  Future<void> onpenConfidentialPolicy() async {
+    const url = 'https://tally.so/r/wz0Rz0'; //  lien Facebook
+    try {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      print('Erreur lors d\'ouverture de la politique de confidentialité : $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +48,7 @@ class GuideUtilisationPage extends StatelessWidget {
               ],
             ),
           ),
-          Row(
+          const Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               Flexible(flex: 3, child: Divider()),
@@ -62,6 +72,20 @@ class GuideUtilisationPage extends StatelessWidget {
           const Text(
               textAlign: TextAlign.justify,
               "Bienvenue dans 'Bénin Num Auto', votre application conçue pour mettre à jour rapidement et efficacement vos contacts téléphoniques Béninois tout en préservant leur intégrité et votre tranquillité d'esprit. Ce guide vous accompagne dans l'utilisation des fonctionnalités de l'application."),
+          const Text(
+              'En utilisant notre application, vous acceptez les conditions de notre'),
+          GestureDetector(
+            onTap: () async {
+              await onpenConfidentialPolicy();
+            },
+            child: Text(
+              textWidthBasis: TextWidthBasis.longestLine,
+              "POLITIQUE DE CONFIDENTIALITÉ",
+              style: TextStyle(
+                color: Colors.blueAccent.shade700,
+              ),
+            ),
+          ),
           space,
           space,
           space,

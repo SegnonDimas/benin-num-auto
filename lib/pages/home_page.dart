@@ -181,7 +181,7 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
   }*/
 
   /// Fonction pour transformer un numéro béninois au nouveau format +22901XXXXXXXX
-  String transformBeninNumber(String number) {
+  /*String transformBeninNumber(String number) {
     // Nettoyage du numéro pour enlever les espaces, tirets, parenthèses
     var cleanedNumber = number.replaceAll(RegExp(r'[\s\-\(\)]'), '');
 
@@ -205,11 +205,35 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
 
     // Retourner le numéro original si aucune condition n'est remplie
     return number;
+  }*/
+
+  String transformBeninNumber(String number) {
+    // Nettoyage du numéro pour enlever les espaces, tirets, parenthèses
+    final cleanedNumber = number.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+
+    // Si le numéro est local (8 chiffres), ajouter '01' au début
+    if (cleanedNumber.length == 8) {
+      return '+22901$cleanedNumber';
+    }
+
+    // Détecter les indicatifs béninois et vérifier si le numéro est local
+    final patterns = [r'^\+229', r'^00229', r'^229'];
+    for (var pattern in patterns) {
+      if (RegExp(pattern).hasMatch(cleanedNumber)) {
+        final localNumber = cleanedNumber.replaceFirst(RegExp(pattern), '');
+        if (localNumber.length == 8) {
+          return '+22901$localNumber';
+        }
+      }
+    }
+
+    // Si aucune transformation nécessaire, retourner le numéro original
+    return number;
   }
 
   /// Met à jour un contact en ajoutant le nouveau format tout en conservant l'ancien
 
-  Future<void> updateContact(Contact contact) async {
+  /*Future<void> updateContact(Contact contact) async {
     bool updated = false;
 
     // Créer une copie de la liste pour éviter les modifications pendant l'itération
@@ -231,15 +255,39 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
       try {
         await contact.update(); // Enregistrer les modifications
         print('Contact mis à jour : ${contact.displayName}');
-        /*ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Contact mis à jour : ${contact.displayName}')),
-        );*/
+
       } catch (e) {
         print('Erreur lors de la mise à jour : $e');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Erreur lors de la mise à jour.')),
         );
+      }
+    }
+  }*/
+
+  Future<void> updateContact(Contact contact) async {
+    bool updated = false;
+    final phonesToCheck = List.of(contact.phones);
+
+    for (var phone in phonesToCheck) {
+      final oldNumber = phone.number;
+      final newNumber = transformBeninNumber(oldNumber);
+
+      // Vérifie si le nouveau numéro est différent et unique
+      if (newNumber != oldNumber &&
+          !contact.phones.any((p) => p.number == newNumber)) {
+        contact.phones.add(Phone(newNumber)); // Ajouter le nouveau numéro
+        updated = true;
+      }
+    }
+
+    if (updated) {
+      try {
+        await contact.update();
+        print('Contact mis à jour : ${contact.displayName}');
+      } catch (e) {
+        print('Erreur lors de la mise à jour : $e');
+        // Vous pouvez ajouter une gestion d'erreur ici
       }
     }
   }
@@ -259,6 +307,8 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
 
     for (var contact in contactsToUpdate) {
       await updateContact(contact);
+      await organizeContactNumbers(
+          contact); // Organiser et nettoyer les contacts
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -268,6 +318,47 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
 
     // Rafraîchir les contacts après mise à jour
     await refreshContacts();
+  }
+
+  Future<void> organizeContactNumbers(Contact contact) async {
+    // Listes pour stocker les numéros sous le nouveau et l'ancien format
+    final Set<String> newFormatPhones = {}; // Set pour éviter les doublons
+    final Set<String> oldFormatPhones = {}; // Set pour éviter les doublons
+
+    // Créer une copie des numéros existants pour itération
+    final List<Phone> phonesToCheck = List.from(contact.phones);
+
+    for (var phone in phonesToCheck) {
+      final oldNumber = phone.number;
+      final transformedNumber = transformBeninNumber(oldNumber);
+
+      if (transformedNumber != oldNumber) {
+        // Ajouter au groupe des nouveaux formats si transformation
+        newFormatPhones.add(transformedNumber);
+      }
+
+      // Ajouter le numéro original (il peut ne pas nécessiter de transformation)
+      oldFormatPhones.add(oldNumber);
+    }
+
+    // Organiser les numéros : nouveaux formats en premier
+    final List<Phone> organizedPhones = [
+      ...newFormatPhones.map((number) => Phone(number)),
+      ...oldFormatPhones.map((number) => Phone(number)),
+    ];
+
+    // Appliquer la nouvelle organisation au contact
+    contact.phones
+      ..clear()
+      ..addAll(organizedPhones);
+
+    // Sauvegarder les modifications
+    try {
+      await contact.update();
+      print('Contact organisé : ${contact.displayName}');
+    } catch (e) {
+      print('Erreur lors de la mise à jour : $e');
+    }
   }
 
   /// Rafraîchir les contacts dans l'application
@@ -282,6 +373,58 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
   }
 
   /// FIN : convertion des contacts au format +22901XXXXXXXX
+
+  /// DEBUT : Réorganisation des numéros des contacts
+  /*Future<void> organizeContactNumbers(Contact contact) async {
+    // Listes pour stocker les numéros sous l'ancien et le nouveau format
+    final List<Phone> newFormatPhones = [];
+    final List<Phone> oldFormatPhones = [];
+
+    // Parcourir tous les numéros du contact
+    for (var phone in contact.phones) {
+      final oldNumber = phone.number; // Numéro actuel
+      final transformedNumber =
+          transformBeninNumber(oldNumber); // Transformation
+
+      if (transformedNumber != oldNumber) {
+        // Si le numéro a été transformé, ajouter au groupe des nouveaux numéros
+        newFormatPhones.add(Phone(transformedNumber));
+      } else {
+        // Sinon, conserver dans le groupe des anciens numéros
+        oldFormatPhones.add(phone);
+      }
+    }
+
+    // Réorganiser les numéros : nouveaux formats en premier
+    final List<Phone> organizedPhones = [
+      ...newFormatPhones, // Nouveaux numéros
+      ...oldFormatPhones, // Anciens numéros
+    ];
+
+    // Appliquer cette organisation au contact
+    contact.phones
+      ..clear() // Effacer l'existant
+      ..addAll(organizedPhones); // Ajouter la nouvelle organisation
+
+    // Tenter de sauvegarder les changements
+    try {
+      await contact.update(); // Mise à jour du carnet
+      print('Contact organisé : ${contact.displayName}');
+
+      // Notification à l'utilisateur
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Contact mis à jour : ${contact.displayName}')),
+      );
+    } catch (e) {
+      // En cas d'erreur, afficher une notification
+      print('Erreur lors de la mise à jour : $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erreur lors de la mise à jour.')),
+      );
+    }
+  }*/
+
+  /// FIN :  Réorganisation des numéros des contacts
 
   /// DEBUT : filtrage des contacts
   void filterContacts(String query) {
@@ -396,98 +539,78 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
 
   /// FIN : reconversion des contacts au format XXXXXXXX
 
-  /// DEBUT : nettoyage des contacts
+  /// DEBUT : nettoyage des contacts / Pour la suppression des anciens numéros
 
-  String transformBeninNumberForCleaning(String number) {
-    // Nettoyage du numéro pour enlever espaces, tirets, parenthèses
-    var cleanedNumber = number.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+  Future<void> removeOldBeninNumbers(
+      List<Contact> contactsToProcess, // Liste des contacts à traiter
 
-    // Si le numéro est local (8 chiffres), on ajoute '01' au début
-    if (cleanedNumber.length == 8) {
-      return '+22901$cleanedNumber';
-    }
+      {bool deleteAll = false}) async {
+    /*selectedContacts.length != 0
+        ? contactsToProcess = selectedContacts
+        : contactsToProcess = contacts;*/
+    for (var contact in contactsToProcess) {
+      // Liste temporaire pour conserver uniquement les numéros à ne pas supprimer
+      final List<Phone> updatedPhones = [];
 
-    // Liste des patterns pour détecter les formats béninois connus
-    final patterns = [r'^\+229', r'^00229', r'^229'];
+      for (var phone in contact.phones) {
+        final originalNumber = phone.number;
+        final transformedNumber = transformBeninNumber(originalNumber);
 
-    // Vérification de chaque pattern
-    for (var pattern in patterns) {
-      if (RegExp(pattern).hasMatch(cleanedNumber)) {
-        var localNumber = cleanedNumber.replaceFirst(RegExp(pattern), '');
-        if (localNumber.length == 8) {
-          return '+22901$localNumber'; // Transformer en nouveau format
+        // Identifier les anciens formats béninois uniquement
+        if (isBeninNumber(originalNumber) &&
+            transformedNumber != originalNumber) {
+          // C'est un ancien format béninois -> Ignorer (ne pas ajouter à `updatedPhones`)
+          print('Numéro supprimé : $originalNumber');
+        } else {
+          // Conserver les autres numéros
+          updatedPhones.add(phone);
         }
       }
-    }
 
-    // Retourner le numéro tel quel s'il ne correspond pas
-    return number;
-  }
-
-  Future<void> cleanContact(Contact contact) async {
-    final List<String> transformedNumbers = [];
-    bool updated = false;
-
-    for (var phone in contact.phones) {
-      final oldNumber = phone.number;
-      final transformedNumber = transformBeninNumberForCleaning(oldNumber);
-
-      // Si le numéro est déjà dans le bon format, on le garde tel quel
-      if (transformedNumbers.contains(transformedNumber)) {
-        continue; // Évite les doublons déjà présents
-      }
-
-      // Transformer si nécessaire
-      if (transformedNumber != oldNumber) {
-        updated = true;
-      }
-
-      transformedNumbers.add(transformedNumber); // Ajouter le numéro transformé
-    }
-
-    // Si des mises à jour sont nécessaires, nettoyer et sauvegarder
-    if (updated) {
-      contact.phones.clear(); // Supprimer tous les anciens numéros
-      for (var number in transformedNumbers) {
-        contact.phones.add(Phone(number)); // Ajouter les nouveaux numéros
-      }
+      // Appliquer la liste mise à jour au contact
+      contact.phones
+        ..clear()
+        ..addAll(updatedPhones);
 
       try {
+        // Sauvegarder les modifications
         await contact.update();
-        print('Contact nettoyé : ${contact.displayName}');
-        /*ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Contact nettoyé : ${contact.displayName}')),
-        );*/
+        print(
+            'Numéros anciens supprimés pour le contact : ${contact.displayName}');
       } catch (e) {
-        print('Erreur lors du nettoyage : $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erreur lors du nettoyage.')),
-        );
+        print(
+            'Erreur lors de la mise à jour du contact ${contact.displayName} : $e');
       }
     }
-  }
 
-  Future<void> cleanContacts({bool cleanAll = false}) async {
-    if (!await FlutterContacts.requestPermission(readonly: false)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Permission refusée.')),
-      );
-      return;
-    }
-
-    final contactsToClean = cleanAll ? contacts : selectedContacts;
-
-    for (var contact in contactsToClean) {
-      await cleanContact(contact);
-    }
+    // Afficher un message global après traitement
+    final message = deleteAll
+        ? 'Tous les contacts ont été mis à jour.'
+        : '${contactsToProcess.length} contacts sélectionnés ont été mis à jour.';
+    print(message);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${contactsToClean.length} contacts nettoyés !')),
+      SnackBar(content: Text(message)),
     );
-    await refreshContacts();
   }
 
-  /// FIN : nettoyage des contacts
+  bool isBeninNumber(String number) {
+    // Nettoyer le numéro pour uniformiser le format
+    var cleanedNumber = number.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+
+    // Vérifier si le numéro correspond à un format béninois
+    final patterns = [r'^\+229', r'^00229', r'^229', r'^\d{8}$'];
+
+    for (var pattern in patterns) {
+      if (RegExp(pattern).hasMatch(cleanedNumber)) {
+        return true;
+      }
+    }
+
+    return false; // Si aucun pattern ne correspond, ce n'est pas un numéro béninois
+  }
+
+  /// FIN : nettoyage des contacts / Pour la suppression des anciens numéros
 
   /// DEBUT : Facebook, Gmail, Partage
   // facebook
@@ -530,6 +653,16 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
   }
 
   /// FIN : Facebook, Gmail, Partage
+
+  /// politique de confidentialité
+  Future<void> onpenConfidentialPolicy() async {
+    const url = 'https://tally.so/r/wz0Rz0'; //  lien Facebook
+    try {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      print('Erreur lors d\'ouverture de la politique de confidentialité : $e');
+    }
+  }
 
   int letterIndex = 0;
   int letterIndexTemp = 0;
@@ -575,7 +708,7 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             SizedBox(
-              height: 700,
+              height: 650,
               child: Column(
                 children: [
                   //icon
@@ -601,10 +734,10 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
                   ),
                   //facebook
                   ListTile(
-                      leading: const Icon(
+                      leading: Icon(
                         Icons.facebook,
                         size: 30,
-                        color: Colors.blue,
+                        color: Colors.blue.shade800,
                       ),
                       title: const Text(
                         "Nous suivre sur notre page",
@@ -1029,8 +1162,8 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
                                                             isOperating = true;
                                                           });
                                                           //await updateContactsToLocal(); // Appelle la fonction de reconversion
-                                                          await cleanContacts(
-                                                              cleanAll: true);
+                                                          await removeOldBeninNumbers(
+                                                              contacts);
                                                           setState(() {
                                                             selectedContacts =
                                                                 [];
@@ -1241,8 +1374,10 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
                                                             isOperating = true;
                                                           });
                                                           //await updateContactsToLocal(); // Appelle la fonction de reconversion
-                                                          await cleanContacts(
-                                                              cleanAll: false);
+                                                          /*await cleanContacts(
+                                                              cleanAll: false);*/
+                                                          await removeOldBeninNumbers(
+                                                              selectedContacts /*.isNotEmpty?selectedContacts:contacts*/);
                                                           setState(() {
                                                             selectedContacts =
                                                                 [];
@@ -1317,17 +1452,34 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
                 ],
               ),
             ),
-            const SizedBox(
-              child: Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Text(
-                  textAlign: TextAlign.center,
-                  "Powered by\nSmart Solutions Innova",
-                  style: TextStyle(
-                      //color: Colors.deepOrange,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 10),
-                ),
+            SizedBox(
+              height: 75,
+              child: Column(
+                children: [
+                  GestureDetector(
+                    onTap: () async {
+                      await onpenConfidentialPolicy();
+                    },
+                    child: Text(
+                      textWidthBasis: TextWidthBasis.longestLine,
+                      "POLITIQUE DE CONFIDENTIALITÉ",
+                      style: TextStyle(
+                        color: Colors.blueAccent.shade700,
+                      ),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Text(
+                      textAlign: TextAlign.center,
+                      "Powered by\nSmart Solutions Innova",
+                      style: TextStyle(
+                          //color: Colors.deepOrange,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 10),
+                    ),
+                  ),
+                ],
               ),
             )
           ],
@@ -1400,7 +1552,7 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
                               context,
                               MaterialPageRoute(
                                   builder: (context) =>
-                                      GuideUtilisationPage()));
+                                      const GuideUtilisationPage()));
                         },
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -1425,179 +1577,6 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
                 : Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      /*Tooltip(
-                  message: 'Reconvertir vos numéros',
-                  showDuration: const Duration(seconds: 3),
-                  verticalOffset: 49,
-                  child: AppButton(
-                    backgroundColor: Colors.grey.shade600,
-                    height: 50,
-                    width: 50,
-                    borderRadius: 30,
-                    onTap: () async {
-                      showDialog(
-                          context: context,
-                          builder: (context) {
-                            return Dialog(
-                                backgroundColor: Colors.white,
-                                child: SizedBox(
-                                  height: 340,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Column(
-                                      children: [
-                                        const Padding(
-                                          padding: EdgeInsets.only(top: 22.0),
-                                          child: Text(
-                                            textAlign: TextAlign.center,
-                                            'RAMENER TOUS LES CONTACTS MODIFIÉS À L\'ANCIEN FORMAT',
-                                            style: TextStyle(
-                                                //color: Colors.white,
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 13),
-                                          ),
-                                        ),
-                                        SizedBox(
-                                          child: !isOperating
-                                              ? const Column(
-                                                  children: [
-                                                    ListTile(
-                                                      leading: Icon(
-                                                        Icons
-                                                            .emoji_emotions_outlined,
-                                                        color: Colors.orange,
-                                                      ),
-                                                      title: Text(
-                                                        'Nous ramenerons au format XXXXXXXX tous les numéros béninois des contacts',
-                                                        style: TextStyle(
-                                                            //color: Colors.white,
-                                                            //fontWeight: FontWeight.w900,
-                                                            fontSize: 11),
-                                                      ),
-                                                    ),
-                                                    ListTile(
-                                                      leading: Icon(
-                                                        Icons.verified_user_sharp,
-                                                        color: Colors.green,
-                                                      ),
-                                                      title: Text(
-                                                        'Nous ne toucherons qu\'aux numéros modifiés sur notre applications',
-                                                        style: TextStyle(
-                                                            //color: Colors.white,
-                                                            //fontWeight: FontWeight.w900,
-                                                            fontSize: 11),
-                                                      ),
-                                                    ),
-                                                    ListTile(
-                                                      leading: Icon(
-                                                        Icons.verified_user_sharp,
-                                                        color: Colors.green,
-                                                      ),
-                                                      title: Text(
-                                                        'Nous ne toucherons à aucun numéro non béninois',
-                                                        style: TextStyle(
-                                                            //color: Colors.white,
-                                                            //fontWeight: FontWeight.w900,
-                                                            fontSize: 11),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                )
-                                              : SizedBox(
-                                                  height: 180,
-                                                  child: Expanded(
-                                                    child: Column(
-                                                      children: [
-                                                        SizedBox(
-                                                          height: 100,
-                                                          child: Lottie.asset(
-                                                              'assets/lotties/loading4.json'),
-                                                        ),
-                                                        const Text(
-                                                            "Opération en cours ..."),
-                                                        const Text(
-                                                            "Veuillez patienter ...")
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              AppButton(
-                                                alignment: Alignment.center,
-                                                onTap: () async {
-                                                  Navigator.pop(context);
-                                                  setState(() {
-                                                    isOperating = true;
-                                                  });
-                                                  await updateContactsToLocal(); // Appelle la fonction de reconversion
-                                                  setState(() {
-                                                    selectedContacts = [];
-                                                    isOperating = false;
-                                                  });
-                                                  //Navigator.pop(context);
-                                                },
-                                                height: 50,
-                                                width: 110,
-                                                backgroundColor:
-                                                    Colors.green.shade700,
-                                                child: !isOperating
-                                                    ? const Text(
-                                                        'CONFIRMER',
-                                                        style: TextStyle(
-                                                            color: Colors.white,
-                                                            fontWeight:
-                                                                FontWeight.w900,
-                                                            fontSize: 12.5),
-                                                      )
-                                                    : const CupertinoActivityIndicator(
-                                                        color: Colors.white,
-                                                      ),
-                                              ),
-                                              AppButton(
-                                                  alignment: Alignment.center,
-                                                  onTap: () {
-                                                    Navigator.pop(context);
-                                                  },
-                                                  height: 50,
-                                                  width: 110,
-                                                  backgroundColor:
-                                                      Colors.red.shade700,
-                                                  child: const Text(
-                                                    'ANNULER',
-                                                    style: TextStyle(
-                                                        color: Colors.white,
-                                                        fontWeight:
-                                                            FontWeight.w900,
-                                                        fontSize: 12.5),
-                                                  )),
-                                            ],
-                                          ),
-                                        )
-                                      ],
-                                    ),
-                                  ),
-                                ));
-                          });
-
-                      setState(() {});
-                    },
-                    child: const Icon(
-                      Icons.replay,
-                      color: Colors.white,
-                    ),
-                    //tooltip: 'Reconvertir les numéros sélectionnés',
-                  ),
-                ),*/
-                      /*Icon(
-                  Icons.search_rounded,
-                  //size: 25,
-                ),*/
                       Expanded(
                         child: SizedBox(
                           height: 50,
@@ -1671,133 +1650,91 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
             )
           else
             Expanded(
-              child: Column(
+              child: Stack(
                 children: [
-                  SizedBox(
-                    height: 40,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _rechercheLettre.length,
-                      itemBuilder: (context, index) {
-                        return AppButton(
-                          onTap: () {
-                            setState(() {
-                              if (index != letterIndex) {
-                                letterIndexTemp = letterIndex;
-                                letterIndex = index;
-                                selectAll = false;
-                                selectedContacts = [];
-                              } else {
-                                letterIndexTemp = letterIndex;
-                                letterIndex = index;
-                              }
+                  Column(
+                    children: [
+                      SizedBox(
+                        height: 40,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _rechercheLettre.length,
+                          itemBuilder: (context, index) {
+                            return AppButton(
+                              onTap: () {
+                                setState(() {
+                                  if (index != letterIndex) {
+                                    letterIndexTemp = letterIndex;
+                                    letterIndex = index;
+                                    selectAll = false;
+                                    selectedContacts = [];
+                                  } else {
+                                    letterIndexTemp = letterIndex;
+                                    letterIndex = index;
+                                  }
 
-                              filterContactsByLetter(_rechercheLettre[index]);
-                            });
+                                  filterContactsByLetter(
+                                      _rechercheLettre[index]);
+                                });
+                              },
+                              width: 60,
+                              alignment: Alignment.center,
+                              backgroundColor: letterIndex == index
+                                  ? Colors.blue.withOpacity(0.5)
+                                  : Colors.grey.shade200,
+                              child: Text(_rechercheLettre[index]),
+                            );
                           },
-                          width: 60,
-                          alignment: Alignment.center,
-                          backgroundColor: letterIndex == index
-                              ? Colors.blue.withOpacity(0.5)
-                              : Colors.grey.shade200,
-                          child: Text(_rechercheLettre[index]),
-                        );
-                      },
-                    ),
-                  ),
-                  selectedContacts.length != 0
-                      ? Padding(
-                          padding: const EdgeInsets.only(left: 16.0, right: 25),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                "Sélectionner tout",
-                                style: TextStyle(
-                                    color: Colors.blue.shade800,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 13),
+                        ),
+                      ),
+                      selectedContacts.length != 0 && !isOperating
+                          ? Padding(
+                              padding:
+                                  const EdgeInsets.only(left: 16.0, right: 25),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    "Sélectionner tout",
+                                    style: TextStyle(
+                                        color: Colors.blue.shade800,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 13),
+                                  ),
+                                  AppButton(
+                                    onTap: () {
+                                      setState(() {
+                                        selectAll = !selectAll;
+                                        if (selectAll) {
+                                          letterIndex != 0
+                                              ? selectedContacts =
+                                                  filteredContactsByLetter
+                                              : selectedContacts = contacts;
+                                        } else {
+                                          selectedContacts = [];
+                                        }
+                                      });
+                                    },
+                                    child: !selectAll
+                                        ? const Icon(Icons.check_box_outlined)
+                                        : const Icon(
+                                            Icons.check_box,
+                                            color: Colors.green,
+                                          ),
+                                  )
+                                ],
                               ),
-                              AppButton(
-                                onTap: () {
-                                  setState(() {
-                                    selectAll = !selectAll;
-                                    if (selectAll) {
-                                      letterIndex != 0
-                                          ? selectedContacts =
-                                              filteredContactsByLetter
-                                          : selectedContacts = contacts;
-                                    } else {
-                                      selectedContacts = [];
-                                    }
-                                  });
-                                },
-                                child: !selectAll
-                                    ? const Icon(Icons.check_box_outlined)
-                                    : const Icon(
-                                        Icons.check_box,
-                                        color: Colors.green,
-                                      ),
-                              )
-                            ],
-                          ),
-                        )
-                      : Container(),
-                  selectAll && letterIndex == 0
-                      ? Expanded(
-                          child: ListView.builder(
-                            itemCount: filteredContacts.length,
-                            itemBuilder: (context, index) {
-                              selectedContacts = contacts;
-                              final contact = filteredContacts[index];
-
-                              return ListTile(
-                                onTap: () {
-                                  setState(() {
-                                    if (selectedContacts.contains(contact)) {
-                                      selectedContacts.remove(contact);
-                                    } else {
-                                      selectedContacts.add(contact);
-                                    }
-                                  });
-                                },
-                                leading: CircleAvatar(
-                                  child: Text(contact.displayName?[0] ?? '',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold)),
-                                ),
-                                title: Text(
-                                  contact.displayName ?? 'Sans nom',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600),
-                                ),
-                                subtitle: Text(
-                                  contact.phones.isNotEmpty
-                                      ? contact.phones.first.number
-                                      : 'Pas de numéro',
-                                ),
-                                trailing: Checkbox(
-                                  value: selectedContacts.contains(contact),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      if (value == true) {
-                                        selectedContacts.add(contact);
-                                      } else {
-                                        selectedContacts.remove(contact);
-                                      }
-                                    });
-                                  },
-                                ),
-                              );
-                            },
-                          ),
-                        )
-                      : letterIndex == 0
+                            )
+                          : Container(),
+                      selectAll && letterIndex == 0
                           ? Expanded(
                               child: ListView.builder(
                                 itemCount: filteredContacts.length,
                                 itemBuilder: (context, index) {
+                                  selectedContacts = contacts;
                                   final contact = filteredContacts[index];
+
                                   return ListTile(
                                     onTap: () {
                                       setState(() {
@@ -1840,219 +1777,356 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
                                 },
                               ),
                             )
-                          : Expanded(
-                              child: ListView.builder(
-                                itemCount: filteredContactsByLetter.length,
-                                itemBuilder: (context, index) {
-                                  final contact =
-                                      filteredContactsByLetter[index];
-                                  return ListTile(
-                                    leading: CircleAvatar(
-                                      child: Text(contact.displayName?[0] ?? '',
+                          : letterIndex == 0
+                              ? Expanded(
+                                  child: ListView.builder(
+                                    itemCount: filteredContacts.length,
+                                    itemBuilder: (context, index) {
+                                      final contact = filteredContacts[index];
+                                      return ListTile(
+                                        onTap: () {
+                                          setState(() {
+                                            if (selectedContacts
+                                                .contains(contact)) {
+                                              selectedContacts.remove(contact);
+                                            } else {
+                                              selectedContacts.add(contact);
+                                            }
+                                          });
+                                        },
+                                        leading: CircleAvatar(
+                                          child: Text(
+                                              contact.displayName?[0] ?? '',
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.bold)),
+                                        ),
+                                        title: Text(
+                                          contact.displayName ?? 'Sans nom',
                                           style: const TextStyle(
-                                              fontWeight: FontWeight.bold)),
+                                              fontWeight: FontWeight.w600),
+                                        ),
+                                        subtitle: Text(
+                                          contact.phones.isNotEmpty
+                                              ? contact.phones.first.number
+                                              : 'Pas de numéro',
+                                        ),
+                                        trailing: Checkbox(
+                                          value: selectedContacts
+                                              .contains(contact),
+                                          onChanged: (value) {
+                                            setState(() {
+                                              if (value == true) {
+                                                selectedContacts.add(contact);
+                                              } else {
+                                                selectedContacts
+                                                    .remove(contact);
+                                              }
+                                            });
+                                          },
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                )
+                              : Expanded(
+                                  child: ListView.builder(
+                                    itemCount: filteredContactsByLetter.length,
+                                    itemBuilder: (context, index) {
+                                      final contact =
+                                          filteredContactsByLetter[index];
+                                      return ListTile(
+                                        leading: CircleAvatar(
+                                          child: Text(
+                                              contact.displayName?[0] ?? '',
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.bold)),
+                                        ),
+                                        title: Text(contact.displayName ??
+                                            'Nom inconnu'),
+                                        subtitle: Text(contact.phones.isNotEmpty
+                                            ? contact.phones.first.number
+                                            : 'Numéro inconnu'),
+                                        trailing: Checkbox(
+                                          value: selectedContacts
+                                              .contains(contact),
+                                          onChanged: (isSelected) {
+                                            setState(() {
+                                              if (isSelected == true) {
+                                                selectedContacts.add(contact);
+                                              } else {
+                                                selectedContacts
+                                                    .remove(contact);
+                                              }
+                                            });
+                                          },
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                    ],
+                  ),
+                  isOperating
+                      ? Center(
+                          child: AppButton(
+                            alignment: Alignment.topCenter,
+                            height: 300,
+                            width: 300,
+                            backgroundColor: Colors.black87.withOpacity(0.8),
+                            borderRadius: 30,
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  AppButton(
+                                      height: 150,
+                                      child: Lottie.asset(
+                                          'assets/lotties/loading4.json')),
+                                  Container(
+                                    // width: 200.0,
+                                    //height: 50.0,
+                                    alignment: Alignment.center,
+                                    child: Shimmer.fromColors(
+                                      baseColor: Colors.white,
+                                      highlightColor: Colors.black38,
+                                      child: AppButton(
+                                        onTap: () {
+                                          Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      const GuideUtilisationPage()));
+                                        },
+                                        child: const Text(
+                                          'Opération en cours ...\nVeuillez patienter ...',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 16.0,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                    title: Text(
-                                        contact.displayName ?? 'Nom inconnu'),
-                                    subtitle: Text(contact.phones.isNotEmpty
-                                        ? contact.phones.first.number
-                                        : 'Numéro inconnu'),
-                                    trailing: Checkbox(
-                                      value: selectedContacts.contains(contact),
-                                      onChanged: (isSelected) {
-                                        setState(() {
-                                          if (isSelected == true) {
-                                            selectedContacts.add(contact);
-                                          } else {
-                                            selectedContacts.remove(contact);
-                                          }
-                                        });
-                                      },
-                                    ),
-                                  );
-                                },
+                                  )
+                                ],
                               ),
                             ),
+                          ),
+                        )
+                      : Container()
                 ],
               ),
             ),
         ],
       ),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            selectedContacts.length != 0
-                ? Tooltip(
-                    message:
-                        'Seuls les contacts sélectionnés seront mis à jour conformément à la norme du Gouvernement',
-                    showDuration: const Duration(seconds: 6),
-                    verticalOffset: 25,
-                    //padding: EdgeInsets.all(8),
-                    child: AppButton(
-                      alignment: Alignment.center,
-                      width: MediaQuery.of(context).size.width * 0.95,
-                      height: 50,
-                      borderRadius: 20,
-                      //backgroundColor: Colors.blue.shade800,
-                      border: Border.all(color: Colors.white),
-                      backgroundColor: Colors.blue.shade800,
-                      onTap: () async {
-                        selectedContacts.length == 0
-                            ? showDialog(
-                                context: context,
-                                builder: (context) {
-                                  return const AlertDialog(
-                                    icon: Icon(
-                                      Icons.mood_bad_sharp,
-                                      size: 35,
-                                      color: Colors.orange,
-                                    ),
-                                    title: Text(
-                                      "Oups désolé",
-                                      style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w900),
-                                    ),
-                                    content: Text(
-                                        textAlign: TextAlign.center,
-                                        "Veuillez sélectionner au moins un contact"),
-                                  );
-                                })
-                            : showDialog(
-                                context: context,
-                                builder: (context) {
-                                  return Dialog(
-                                      backgroundColor: Colors.white,
-                                      child: SizedBox(
-                                        height: 340,
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Column(
-                                            children: [
-                                              const Padding(
-                                                padding:
-                                                    EdgeInsets.only(top: 22.0),
-                                                child: Text(
-                                                  textAlign: TextAlign.center,
-                                                  'METTRE À JOUR LES CONTACTS SÉLECTIONNÉS',
-                                                  style: TextStyle(
-                                                      //color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.w900,
-                                                      fontSize: 13),
-                                                ),
-                                              ),
-                                              !isOperating
-                                                  ? const SizedBox(
-                                                      child: Column(
-                                                        children: [
-                                                          ListTile(
-                                                            leading: Icon(
-                                                              Icons
-                                                                  .emoji_emotions_outlined,
-                                                              color:
-                                                                  Colors.orange,
-                                                            ),
-                                                            title: Text(
-                                                              'Nous mettrons à jours tous les numéros béninois des contacts sélectionnés',
-                                                              style: TextStyle(
-                                                                  //color: Colors.white,
-                                                                  //fontWeight: FontWeight.w900,
-                                                                  fontSize: 11),
-                                                            ),
-                                                          ),
-                                                          ListTile(
-                                                            leading: Icon(
-                                                              Icons
-                                                                  .emoji_emotions_outlined,
-                                                              color:
-                                                                  Colors.orange,
-                                                            ),
-                                                            title: Text(
-                                                              'Tous les numéros modifiés passeront au format +22901XXXXXXXX',
-                                                              style: TextStyle(
-                                                                  //color: Colors.white,
-                                                                  //fontWeight: FontWeight.w900,
-                                                                  fontSize: 11),
-                                                            ),
-                                                          ),
-                                                          ListTile(
-                                                            leading: Icon(
-                                                              Icons
-                                                                  .verified_user_sharp,
-                                                              color:
-                                                                  Colors.green,
-                                                            ),
-                                                            title: Text(
-                                                              'Nous ne toucherons à aucun numéro non béninois',
-                                                              style: TextStyle(
-                                                                  //color: Colors.white,
-                                                                  //fontWeight: FontWeight.w900,
-                                                                  fontSize: 11),
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    )
-                                                  : SizedBox(
-                                                      height: 180,
-                                                      child: Expanded(
-                                                        child: Column(
-                                                          children: [
-                                                            SizedBox(
-                                                              height: 100,
-                                                              child: Lottie.asset(
-                                                                  'assets/lotties/loading4.json'),
-                                                            ),
-                                                            const Text(
-                                                                "Opération en cours ..."),
-                                                            const Text(
-                                                                "Veuillez patienter ...")
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                              Padding(
+      bottomNavigationBar: !isLoading
+          ? Container(
+              decoration: const BoxDecoration(),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  selectedContacts.length != 0
+                      ? Tooltip(
+                          message:
+                              'Seuls les contacts sélectionnés seront mis à jour conformément à la norme du Gouvernement',
+                          showDuration: const Duration(seconds: 6),
+                          verticalOffset: 25,
+                          //padding: EdgeInsets.all(8),
+                          child: AppButton(
+                            alignment: Alignment.center,
+                            width: MediaQuery.of(context).size.width * 0.95,
+                            height: 50,
+                            borderRadius: 20,
+                            //backgroundColor: Colors.blue.shade800,
+                            border: Border.all(color: Colors.white),
+                            backgroundColor: Colors.blue.shade800,
+                            onTap: () async {
+                              selectedContacts.length == 0
+                                  ? showDialog(
+                                      context: context,
+                                      builder: (context) {
+                                        return const AlertDialog(
+                                          icon: Icon(
+                                            Icons.mood_bad_sharp,
+                                            size: 35,
+                                            color: Colors.orange,
+                                          ),
+                                          title: Text(
+                                            "Oups désolé",
+                                            style: TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w900),
+                                          ),
+                                          content: Text(
+                                              textAlign: TextAlign.center,
+                                              "Veuillez sélectionner au moins un contact"),
+                                        );
+                                      })
+                                  : showDialog(
+                                      context: context,
+                                      builder: (context) {
+                                        return Dialog(
+                                            backgroundColor: Colors.white,
+                                            child: SizedBox(
+                                              height: 340,
+                                              child: Padding(
                                                 padding:
                                                     const EdgeInsets.all(8.0),
-                                                child: Row(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment
-                                                          .spaceBetween,
+                                                child: Column(
                                                   children: [
-                                                    AppButton(
-                                                        alignment:
-                                                            Alignment.center,
-                                                        onTap: () async {
-                                                          Navigator.pop(
-                                                              context);
-                                                          setState(() {
-                                                            isOperating = true;
-                                                          });
-                                                          await updateContacts(
-                                                              updateAll: false);
+                                                    const Padding(
+                                                      padding: EdgeInsets.only(
+                                                          top: 22.0),
+                                                      child: Text(
+                                                        textAlign:
+                                                            TextAlign.center,
+                                                        'METTRE À JOUR LES CONTACTS SÉLECTIONNÉS',
+                                                        style: TextStyle(
+                                                            //color: Colors.white,
+                                                            fontWeight:
+                                                                FontWeight.w900,
+                                                            fontSize: 13),
+                                                      ),
+                                                    ),
+                                                    !isOperating
+                                                        ? const SizedBox(
+                                                            child: Column(
+                                                              children: [
+                                                                ListTile(
+                                                                  leading: Icon(
+                                                                    Icons
+                                                                        .emoji_emotions_outlined,
+                                                                    color: Colors
+                                                                        .orange,
+                                                                  ),
+                                                                  title: Text(
+                                                                    'Nous mettrons à jours tous les numéros béninois des contacts sélectionnés',
+                                                                    style: TextStyle(
+                                                                        //color: Colors.white,
+                                                                        //fontWeight: FontWeight.w900,
+                                                                        fontSize: 11),
+                                                                  ),
+                                                                ),
+                                                                ListTile(
+                                                                  leading: Icon(
+                                                                    Icons
+                                                                        .emoji_emotions_outlined,
+                                                                    color: Colors
+                                                                        .orange,
+                                                                  ),
+                                                                  title: Text(
+                                                                    'Tous les numéros modifiés passeront au format +22901XXXXXXXX',
+                                                                    style: TextStyle(
+                                                                        //color: Colors.white,
+                                                                        //fontWeight: FontWeight.w900,
+                                                                        fontSize: 11),
+                                                                  ),
+                                                                ),
+                                                                ListTile(
+                                                                  leading: Icon(
+                                                                    Icons
+                                                                        .verified_user_sharp,
+                                                                    color: Colors
+                                                                        .green,
+                                                                  ),
+                                                                  title: Text(
+                                                                    'Nous ne toucherons à aucun numéro non béninois',
+                                                                    style: TextStyle(
+                                                                        //color: Colors.white,
+                                                                        //fontWeight: FontWeight.w900,
+                                                                        fontSize: 11),
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          )
+                                                        : SizedBox(
+                                                            height: 180,
+                                                            child: Expanded(
+                                                              child: Column(
+                                                                children: [
+                                                                  SizedBox(
+                                                                    height: 100,
+                                                                    child: Lottie
+                                                                        .asset(
+                                                                            'assets/lotties/loading4.json'),
+                                                                  ),
+                                                                  const Text(
+                                                                      "Opération en cours ..."),
+                                                                  const Text(
+                                                                      "Veuillez patienter ...")
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          ),
+                                                    Padding(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                              8.0),
+                                                      child: Row(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment
+                                                                .spaceBetween,
+                                                        children: [
+                                                          AppButton(
+                                                              alignment:
+                                                                  Alignment
+                                                                      .center,
+                                                              onTap: () async {
+                                                                Navigator.pop(
+                                                                    context);
+                                                                setState(() {
+                                                                  isOperating =
+                                                                      true;
+                                                                });
+                                                                await updateContacts(
+                                                                    updateAll:
+                                                                        false);
 
-                                                          setState(() {
-                                                            isOperating = false;
-                                                            selectedContacts =
-                                                                [];
-                                                          });
-                                                          //Navigator.pop(context);
-                                                        },
-                                                        height: 50,
-                                                        width: 110,
-                                                        backgroundColor: Colors
-                                                            .green.shade700,
-                                                        child: isOperating
-                                                            ? const CupertinoActivityIndicator(
-                                                                color: Colors
-                                                                    .white,
-                                                              )
-                                                            : const Text(
-                                                                'CONFIRMER',
+                                                                setState(() {
+                                                                  isOperating =
+                                                                      false;
+                                                                  selectedContacts =
+                                                                      [];
+                                                                });
+                                                                //Navigator.pop(context);
+                                                              },
+                                                              height: 50,
+                                                              width: 110,
+                                                              backgroundColor:
+                                                                  Colors.green
+                                                                      .shade700,
+                                                              child: isOperating
+                                                                  ? const CupertinoActivityIndicator(
+                                                                      color: Colors
+                                                                          .white,
+                                                                    )
+                                                                  : const Text(
+                                                                      'CONFIRMER',
+                                                                      style: TextStyle(
+                                                                          color: Colors
+                                                                              .white,
+                                                                          fontWeight: FontWeight
+                                                                              .w900,
+                                                                          fontSize:
+                                                                              12.5),
+                                                                    )),
+                                                          AppButton(
+                                                              alignment:
+                                                                  Alignment
+                                                                      .center,
+                                                              onTap: () {
+                                                                Navigator.pop(
+                                                                    context);
+                                                              },
+                                                              height: 50,
+                                                              width: 110,
+                                                              backgroundColor:
+                                                                  Colors.red
+                                                                      .shade700,
+                                                              child: const Text(
+                                                                'ANNULER',
                                                                 style: TextStyle(
                                                                     color: Colors
                                                                         .white,
@@ -2062,170 +2136,188 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
                                                                     fontSize:
                                                                         12.5),
                                                               )),
-                                                    AppButton(
-                                                        alignment:
-                                                            Alignment.center,
-                                                        onTap: () {
-                                                          Navigator.pop(
-                                                              context);
-                                                        },
-                                                        height: 50,
-                                                        width: 110,
-                                                        backgroundColor:
-                                                            Colors.red.shade700,
-                                                        child: const Text(
-                                                          'ANNULER',
-                                                          style: TextStyle(
-                                                              color:
-                                                                  Colors.white,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w900,
-                                                              fontSize: 12.5),
-                                                        )),
+                                                        ],
+                                                      ),
+                                                    )
                                                   ],
                                                 ),
-                                              )
-                                            ],
-                                          ),
-                                        ),
-                                      ));
-                                });
-                      },
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.touch_app_outlined,
-                            color: Colors.white,
-                          ),
-                          Text(
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
+                                              ),
+                                            ));
+                                      });
+                            },
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.touch_app_outlined,
                                   color: Colors.white,
-                                  fontWeight: FontWeight.normal,
-                                  fontSize: 13),
-                              'Mise à jour des contacts sélectionnés'),
-                        ],
-                      ),
-                    ),
-                  )
-                : Tooltip(
-                    message:
-                        'Tous vos contacts béninois seront mis à jour conformément à la norme du Gouvernement',
-                    showDuration: const Duration(seconds: 6),
-                    verticalOffset: 25,
-                    child: AppButton(
-                      alignment: Alignment.center,
-                      width: MediaQuery.of(context).size.width * 0.95,
-                      height: 50,
-                      borderRadius: 20,
-                      border: Border.all(color: Colors.white),
-                      onTap: () {
-                        showDialog(
-                            context: context,
-                            builder: (context) {
-                              return Dialog(
-                                  backgroundColor: Colors.white,
-                                  child: SizedBox(
-                                    height: 340,
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(8.0),
-                                      child: Column(
-                                        children: [
-                                          const Padding(
-                                            padding: EdgeInsets.only(top: 22.0),
-                                            child: Text(
-                                              'TOUT METTRE À JOUR',
-                                              style: TextStyle(
-                                                  //color: Colors.white,
-                                                  fontWeight: FontWeight.w900,
-                                                  fontSize: 17),
-                                            ),
-                                          ),
-                                          !isOperating
-                                              ? const SizedBox(
-                                                  height: 190,
-                                                  child: Column(
-                                                    children: [
-                                                      ListTile(
-                                                        leading: Icon(
-                                                          Icons
-                                                              .emoji_emotions_outlined,
-                                                          color: Colors.orange,
-                                                        ),
-                                                        title: Text(
-                                                          'Nous mettrons à jours tous les numéros béninois',
-                                                          style: TextStyle(
-                                                              //color: Colors.white,
-                                                              //fontWeight: FontWeight.w900,
-                                                              fontSize: 12),
-                                                        ),
-                                                      ),
-                                                      ListTile(
-                                                        leading: Icon(
-                                                          Icons
-                                                              .verified_user_sharp,
-                                                          color: Colors.green,
-                                                        ),
-                                                        title: Text(
-                                                          'Nous ne toucherons à aucun numéro non béninois',
-                                                          style: TextStyle(
-                                                              //color: Colors.white,
-                                                              //fontWeight: FontWeight.w900,
-                                                              fontSize: 12),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                )
-                                              : SizedBox(
-                                                  height: 180,
-                                                  child: Expanded(
-                                                    child: Column(
-                                                      children: [
-                                                        SizedBox(
-                                                          height: 100,
-                                                          child: Lottie.asset(
-                                                              'assets/lotties/loading4.json'),
-                                                        ),
-                                                        const Text(
-                                                            "Opération en cours ..."),
-                                                        const Text(
-                                                            "Veuillez patienter ...")
-                                                      ],
-                                                    ),
+                                ),
+                                Text(
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.normal,
+                                        fontSize: 13),
+                                    'Mise à jour des contacts sélectionnés'),
+                              ],
+                            ),
+                          ),
+                        )
+                      : Tooltip(
+                          message:
+                              'Tous vos contacts béninois seront mis à jour conformément à la norme du Gouvernement',
+                          showDuration: const Duration(seconds: 6),
+                          verticalOffset: 25,
+                          child: AppButton(
+                            alignment: Alignment.center,
+                            width: MediaQuery.of(context).size.width * 0.95,
+                            height: 50,
+                            borderRadius: 20,
+                            border: Border.all(color: Colors.white),
+                            onTap: () {
+                              showDialog(
+                                  context: context,
+                                  builder: (context) {
+                                    return Dialog(
+                                        backgroundColor: Colors.white,
+                                        child: SizedBox(
+                                          height: 340,
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(8.0),
+                                            child: Column(
+                                              children: [
+                                                const Padding(
+                                                  padding: EdgeInsets.only(
+                                                      top: 22.0),
+                                                  child: Text(
+                                                    'TOUT METTRE À JOUR',
+                                                    style: TextStyle(
+                                                        //color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                        fontSize: 17),
                                                   ),
                                                 ),
-                                          Padding(
-                                            padding: const EdgeInsets.all(8.0),
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                AppButton(
-                                                    alignment: Alignment.center,
-                                                    onTap: () async {
-                                                      Navigator.pop(context);
-                                                      setState(() {
-                                                        isOperating = true;
-                                                      });
-                                                      await updateContacts(
-                                                          updateAll: true);
-                                                      setState(() {
-                                                        isOperating = false;
-                                                        selectedContacts = [];
-                                                      });
-                                                      //Navigator.pop(context);
-                                                    },
-                                                    height: 50,
-                                                    width: 110,
-                                                    backgroundColor:
-                                                        Colors.green.shade700,
-                                                    child: !isOperating
-                                                        ? const Text(
-                                                            'CONFIRMER',
+                                                !isOperating
+                                                    ? const SizedBox(
+                                                        height: 190,
+                                                        child: Column(
+                                                          children: [
+                                                            ListTile(
+                                                              leading: Icon(
+                                                                Icons
+                                                                    .emoji_emotions_outlined,
+                                                                color: Colors
+                                                                    .orange,
+                                                              ),
+                                                              title: Text(
+                                                                'Nous mettrons à jours tous les numéros béninois',
+                                                                style: TextStyle(
+                                                                    //color: Colors.white,
+                                                                    //fontWeight: FontWeight.w900,
+                                                                    fontSize: 12),
+                                                              ),
+                                                            ),
+                                                            ListTile(
+                                                              leading: Icon(
+                                                                Icons
+                                                                    .verified_user_sharp,
+                                                                color: Colors
+                                                                    .green,
+                                                              ),
+                                                              title: Text(
+                                                                'Nous ne toucherons à aucun numéro non béninois',
+                                                                style: TextStyle(
+                                                                    //color: Colors.white,
+                                                                    //fontWeight: FontWeight.w900,
+                                                                    fontSize: 12),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      )
+                                                    : SizedBox(
+                                                        height: 180,
+                                                        child: Expanded(
+                                                          child: Column(
+                                                            children: [
+                                                              SizedBox(
+                                                                height: 100,
+                                                                child: Lottie.asset(
+                                                                    'assets/lotties/loading4.json'),
+                                                              ),
+                                                              const Text(
+                                                                  "Opération en cours ..."),
+                                                              const Text(
+                                                                  "Veuillez patienter ...")
+                                                            ],
+                                                          ),
+                                                        ),
+                                                      ),
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.all(8.0),
+                                                  child: Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .spaceBetween,
+                                                    children: [
+                                                      AppButton(
+                                                          alignment:
+                                                              Alignment.center,
+                                                          onTap: () async {
+                                                            Navigator.pop(
+                                                                context);
+                                                            setState(() {
+                                                              isOperating =
+                                                                  true;
+                                                            });
+                                                            await updateContacts(
+                                                                updateAll:
+                                                                    true);
+                                                            setState(() {
+                                                              isOperating =
+                                                                  false;
+                                                              selectedContacts =
+                                                                  [];
+                                                            });
+                                                            //Navigator.pop(context);
+                                                          },
+                                                          height: 50,
+                                                          width: 110,
+                                                          backgroundColor:
+                                                              Colors.green
+                                                                  .shade700,
+                                                          child: !isOperating
+                                                              ? const Text(
+                                                                  'CONFIRMER',
+                                                                  style: TextStyle(
+                                                                      color: Colors
+                                                                          .white,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w900,
+                                                                      fontSize:
+                                                                          12.5),
+                                                                )
+                                                              : const CupertinoActivityIndicator(
+                                                                  color: Colors
+                                                                      .white,
+                                                                )),
+                                                      AppButton(
+                                                          alignment:
+                                                              Alignment.center,
+                                                          onTap: () {
+                                                            Navigator.pop(
+                                                                context);
+                                                          },
+                                                          height: 50,
+                                                          width: 110,
+                                                          backgroundColor:
+                                                              Colors
+                                                                  .red.shade700,
+                                                          child: const Text(
+                                                            'ANNULER',
                                                             style: TextStyle(
                                                                 color: Colors
                                                                     .white,
@@ -2233,97 +2325,56 @@ class _ContactUpdaterPageState extends State<ContactUpdaterPage> {
                                                                     FontWeight
                                                                         .w900,
                                                                 fontSize: 12.5),
-                                                          )
-                                                        : const CupertinoActivityIndicator(
-                                                            color: Colors.white,
                                                           )),
-                                                AppButton(
-                                                    alignment: Alignment.center,
-                                                    onTap: () {
-                                                      Navigator.pop(context);
-                                                    },
-                                                    height: 50,
-                                                    width: 110,
-                                                    backgroundColor:
-                                                        Colors.red.shade700,
-                                                    child: const Text(
-                                                      'ANNULER',
-                                                      style: TextStyle(
-                                                          color: Colors.white,
-                                                          fontWeight:
-                                                              FontWeight.w900,
-                                                          fontSize: 12.5),
-                                                    )),
+                                                    ],
+                                                  ),
+                                                )
                                               ],
                                             ),
-                                          )
-                                        ],
-                                      ),
-                                    ),
-                                  ));
-                            });
-                      },
-                      //backgroundColor: Colors.green.shade700,
-                      backgroundColor: Colors.orange.shade700,
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.refresh,
-                            color: Colors.white,
-                          ),
-                          Text(
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
+                                          ),
+                                        ));
+                                  });
+                            },
+                            //backgroundColor: Colors.green.shade700,
+                            backgroundColor: Colors.orange.shade700,
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.refresh,
                                   color: Colors.white,
-                                  fontWeight: FontWeight.normal,
-                                  fontSize: 12),
-                              'Mise à jour de tous les contacts béninois'),
-                        ],
-                      ),
-                    ),
-                  ),
-          ],
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endDocked,
-      /*floatingActionButton: SizedBox(
-        height: 120,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Tooltip(
-                  message: 'Actualiser la page',
-                  showDuration: const Duration(seconds: 3),
-                  verticalOffset: 49,
-                  child: AppButton(
-                      backgroundColor: Colors.orange.shade700,
-                      height: 50,
-                      width: 50,
-                      borderRadius: 30,
-                      onTap: isLoading ? () {} : fetchContacts,
-                      child: isLoading
-                          ? const CupertinoActivityIndicator(
-                              radius: 13.0, // Taille du spinner
-                              color: Colors.white,
-                            )
-                          : const Icon(
-                              Icons.refresh,
-                              color: Colors.white,
-                            )),
+                                ),
+                                Text(
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.normal,
+                                        fontSize: 12),
+                                    'Mise à jour de tous les contacts béninois'),
+                              ],
+                            ),
+                          ),
+                        ),
+                ],
+              ),
+            )
+          : GestureDetector(
+              onTap: () async {
+                await onpenConfidentialPolicy();
+              },
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: Text(
+                  textAlign: TextAlign.center,
+                  textWidthBasis: TextWidthBasis.longestLine,
+                  "POLITIQUE DE CONFIDENTIALITÉ",
+                  style: TextStyle(
+                      color: Colors.blueAccent.shade700,
+                      fontWeight: FontWeight.w900),
                 ),
-                const SizedBox(
-                  height: 30,
-                )
-              ],
+              ),
             ),
-          ],
-        ),
-      ),*/
+      floatingActionButtonLocation: FloatingActionButtonLocation.endDocked,
     );
   }
 }
